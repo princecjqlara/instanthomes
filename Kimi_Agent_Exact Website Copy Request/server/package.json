@@ -1,0 +1,37 @@
+{
+  "name": "instanthomes-server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "npm run prisma:generate && tsc -p tsconfig.json",
+    "test": "npm run db:reset:test && dotenv -e .env.test -- vitest run",
+    "prisma:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:reset": "npm run prisma:generate && prisma db push --force-reset --skip-generate && tsx prisma/seed.ts",
+    "db:reset:test": "dotenv -e .env.test -- npm run prisma:generate && dotenv -e .env.test -- prisma db push --force-reset --skip-generate && dotenv -e .env.test -- tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.6.0",
+    "bcryptjs": "^3.0.2",
+    "cloudinary": "^2.8.0",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "multer": "^2.0.2",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/express-session": "^1.18.2",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.10.1",
+    "@types/supertest": "^6.0.3",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "^6.6.0",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  admin
+  tenant_user
+}
+
+enum TenantStatus {
+  active
+  invited
+  paused
+  expired
+}
+
+enum PaymentSubmissionStatus {
+  pending
+  approved
+  rejected
+}
+
+enum FunnelStatus {
+  draft
+  published
+}
+
+enum MeetingMode {
+  inline
+  sticky
+}
+
+model Tenant {
+  id                 String       @id @default(cuid())
+  name               String
+  slug               String       @unique
+  ownerName          String
+  ownerEmail         String
+  status             TenantStatus
+  subscriptionEndsAt DateTime?
+  forcedLogoutAt     DateTime?
+  users              User[]
+  funnels            Funnel[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model User {
+  id           String    @id @default(cuid())
+  fullName     String
+  email        String    @unique
+  passwordHash String
+  demoPassword String?
+  role         UserRole
+  tenantId     String?
+  tenant       Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // InstantMeeting integration
+  imLinked           Boolean   @default(false)
+  imUserId           String?   // UUID from IM's users table
+  imUsername          String?   // IM username (e.g. "john-properties")
+  imEmail            String?   // IM account email
+  imWidgetKey        String?   // IM's pk_xxx widget key
+  imAccessToken      String?   // Encrypted OAuth access token
+  imRefreshToken     String?   // Encrypted OAuth refresh token
+  imTokenExpiresAt   DateTime? // Access token expiry
+  imLinkedAt         DateTime? // When account was linked
+  imScopes           String[]  @default([])
+  integrationLogs    IntegrationLog[]
+}
+
+model Funnel {
+  id              String               @id @default(cuid())
+  uniqueId         String               @unique @default(cuid())
+  tenantId         String
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String
+  slug             String
+  templateKey      String
+  status           FunnelStatus
+  headline         String
+  subheadline      String
+  primaryCtaLabel  String
+  propertyAddress  String
+  propertyPrice    String
+  branding         FunnelBranding?
+  instantMeeting   InstantMeetingConfig?
+  media            FunnelMedia[]
+  customFields     FunnelCustomField[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@unique([tenantId, slug])
+}
+
+model FunnelBranding {
+  id              String  @id @default(cuid())
+  funnelId         String  @unique
+  funnel           Funnel  @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  primaryColor     String
+  lightColor       String
+  darkColor        String
+  accentColor      String
+  backgroundColor  String
+  logoUrl          String?
+}
+
+model InstantMeetingConfig {
+  id            String      @id @default(cuid())
+  funnelId      String      @unique
+  funnel        Funnel      @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  enabled       Boolean
+  mode          MeetingMode
+  headline      String
+  description   String
+  ctaLabel      String
+
+  // Auto-populated from IM when linked
+  meetingUrl    String?   // Full IM booking URL for this funnel
+  widgetKey     String?   // Copies from User.imWidgetKey at creation
+  embedType     String    @default("booking") // "booking" | "live" | "both"
+  showWidget    Boolean   @default(true)      // Show floating widget
+  autoBooking   Boolean   @default(true)      // CTA → IM booking
+  liveBroadcast Boolean   @default(false)     // Enable live broadcast overlay
+}
+
+model FunnelMedia {
+  id           String   @id @default(cuid())
+  funnelId     String
+  funnel       Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  type         MediaType
+  url          String
+  thumbnailUrl String?
+  caption      String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([funnelId, sortOrder])
+}
+
+model FunnelCustomField {
+  id        String   @id @default(cuid())
+  funnelId  String
+  funnel    Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  label     String
+  value     String
+  fieldType CustomFieldType @default(text)
+  sortOrder Int      @default(0)
+
+  @@index([funnelId, sortOrder])
+}
+
+enum MediaType {
+  image
+  video
+}
+
+enum CustomFieldType {
+  text
+  textarea
+  number
+  url
+}
+
+model PaymentSubmission {
+  id                 String                  @id @default(cuid())
+  tenantName         String
+  ownerName          String
+  email              String
+  password           String
+  messengerHandle    String?
+  notes              String?
+  receiptUrl         String?
+  status             PaymentSubmissionStatus @default(pending)
+  reviewedAt         DateTime?
+  reviewNotes        String?
+  approvedTenantSlug String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+}
+
+// Track integration events
+model IntegrationLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform   String   // "instant_meeting"
+  action     String   // "link" | "unlink" | "token_refresh" | "widget_sync" | "error"
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, platform, createdAt])
+}
