@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import express from 'express';
-import session from 'express-session';
+import cookieSession from 'cookie-session';
 import multer from 'multer';
 import { UserRole } from '@prisma/client';
 import { prisma, buildFunnelUrl, createUniqueSlug, resetDatabase, resolveFunnelSlugFromPublicSlug } from './db.js';
@@ -11,16 +11,12 @@ import * as media from './media.js';
 import { z } from 'zod';
 import { encrypt, decrypt } from './encryption.js';
 
-declare module 'express-session' {
-  interface SessionData {
-    user?: {
-      id: string;
-      role: UserRole;
-      tenantId?: string;
-      tenantSlug?: string;
-      loggedInAt?: string;
-    };
-  }
+interface SessionUser {
+  id: string;
+  role: UserRole;
+  tenantId?: string;
+  tenantSlug?: string;
+  loggedInAt?: string;
 }
 
 const SUPPORT_URL = 'https://www.facebook.com/aresmediaph';
@@ -327,7 +323,7 @@ async function findTenantFunnel(tenantSlug: string, funnelSlug: string) {
 }
 
 function requireAuthenticated(request: express.Request, response: express.Response, next: express.NextFunction) {
-  if (!request.session.user) {
+  if (!request.session?.user) {
     response.status(401).json({ error: 'Authentication required' });
     return;
   }
@@ -336,12 +332,13 @@ function requireAuthenticated(request: express.Request, response: express.Respon
 }
 
 function requireAdmin(request: express.Request, response: express.Response, next: express.NextFunction) {
-  if (!request.session.user) {
+  const user = request.session?.user;
+  if (!user) {
     response.status(401).json({ error: 'Authentication required' });
     return;
   }
 
-  if (request.session.user.role !== UserRole.admin) {
+  if (user.role !== UserRole.admin) {
     response.status(403).json({ error: 'Admin access required' });
     return;
   }
@@ -495,18 +492,19 @@ async function createTenantWorkspace(input: {
 }
 
 async function validateAuthenticatedSession(request: express.Request, response: express.Response) {
-  if (!request.session.user) {
+  const sessionUser = request.session?.user as SessionUser | undefined;
+  if (!sessionUser) {
     response.status(401).json({ error: 'Authentication required' });
     return null;
   }
 
   const user = await prisma.user.findUnique({
-    where: { id: request.session.user.id },
+    where: { id: sessionUser.id },
     include: { tenant: true },
   });
 
   if (!user) {
-    request.session.destroy(() => undefined);
+    request.session = null;
     response.status(401).json({ error: 'Authentication required' });
     return null;
   }
@@ -514,14 +512,14 @@ async function validateAuthenticatedSession(request: express.Request, response: 
   if (user.role === UserRole.tenant_user) {
     const tenantStatus = getEffectiveTenantStatus(user.tenant);
 
-    if (wasForcedLogout(request.session.user.loggedInAt, user.tenant?.forcedLogoutAt) || tenantStatus === 'paused' || tenantStatus === 'expired') {
-      request.session.destroy(() => undefined);
+    if (wasForcedLogout(sessionUser.loggedInAt, user.tenant?.forcedLogoutAt) || tenantStatus === 'paused' || tenantStatus === 'expired') {
+      request.session = null;
       response.status(401).json({ error: 'Session expired' });
       return null;
     }
   }
 
-  return { sessionUser: request.session.user, user };
+  return { sessionUser, user };
 }
 
 export { resetDatabase };
@@ -532,14 +530,13 @@ export function createApp() {
   app.use(express.json());
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   app.use(
-    session({
-      secret: process.env.SESSION_SECRET ?? 'instanthomes-dev-session-secret',
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        httpOnly: true,
-        sameSite: 'lax',
-      },
+    cookieSession({
+      name: 'instanthomes_session',
+      keys: [process.env.SESSION_SECRET ?? 'instanthomes-dev-session-secret'],
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
     })
   );
 
@@ -581,7 +578,7 @@ export function createApp() {
       }
     }
 
-    request.session.user = {
+    request.session!.user = {
       id: user.id,
       role: user.role,
       tenantId: user.tenantId ?? undefined,
@@ -627,9 +624,8 @@ export function createApp() {
   });
 
   app.post('/api/auth/logout', (request, response) => {
-    request.session.destroy(() => {
-      response.json({ success: true });
-    });
+    request.session = null;
+    response.json({ success: true });
   });
 
   app.get('/api/admin/users', requireAdmin, async (_request, response) => {
