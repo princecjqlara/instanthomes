@@ -1,0 +1,9 @@
+{
+  "buildCommand": "cd \"Kimi_Agent_Exact Website Copy Request/app\" && npm install && npm run build",
+  "outputDirectory": "Kimi_Agent_Exact Website Copy Request/app/dist",
+  "installCommand": "cd \"Kimi_Agent_Exact Website Copy Request/app\" && npm install",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
