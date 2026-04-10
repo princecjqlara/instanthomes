@@ -1,6 +1,6 @@
 const slugPattern = /[^a-z0-9]+/g;
 
-export const APP_ORIGIN = 'https://funnels.instanthomes.dev';
+export const APP_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://instanthomes.vercel.app';
 
 export function slugify(value: string) {
   return value.toLowerCase().trim().replace(slugPattern, '-').replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-');

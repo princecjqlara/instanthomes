@@ -17,8 +17,20 @@ export function resolveFunnelSlugFromPublicSlug(publicFunnelSlug: string) {
   return publicFunnelSlug.replace(/-\d+$/, '');
 }
 
+function getAppOrigin() {
+  if (process.env.APP_URL) {
+    return process.env.APP_URL.replace(/\/$/, '');
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  return 'http://localhost:5173';
+}
+
 export function buildFunnelUrl(tenantSlug: string, funnelSlug: string) {
-  return `https://funnels.instanthomes.dev/${tenantSlug}/${buildPublicFunnelSlug(funnelSlug)}`;
+  return `${getAppOrigin()}/${tenantSlug}/${buildPublicFunnelSlug(funnelSlug)}`;
 }
 
 function slugify(value: string) {

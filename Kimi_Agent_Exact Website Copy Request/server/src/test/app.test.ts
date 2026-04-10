@@ -99,7 +99,7 @@ describe('Instant Homes server', () => {
       expect.arrayContaining([
         expect.objectContaining({
           slug: 'laurel-ridge-drive',
-          publicUrl: 'https://funnels.instanthomes.dev/bennett-local-group/laurel-ridge-drive-001',
+          publicUrl: 'http://localhost:5173/bennett-local-group/laurel-ridge-drive-001',
         }),
       ])
     );
@@ -387,7 +387,7 @@ describe('Instant Homes server', () => {
     });
     expect(createResponse.body.funnel).toMatchObject({
       slug: 'welcome-offer',
-      publicUrl: 'https://funnels.instanthomes.dev/bennett-local-group-2/welcome-offer-001',
+      publicUrl: 'http://localhost:5173/bennett-local-group-2/welcome-offer-001',
     });
 
     const tenantsResponse = await agent.get('/api/admin/tenants');
@@ -432,7 +432,7 @@ describe('Instant Homes server', () => {
       expect.arrayContaining([
         expect.objectContaining({
           slug: 'laurel-ridge-drive',
-          publicUrl: 'https://funnels.instanthomes.dev/bennett-local-group/laurel-ridge-drive-001',
+          publicUrl: 'http://localhost:5173/bennett-local-group/laurel-ridge-drive-001',
         }),
       ])
     );
@@ -596,7 +596,7 @@ describe('Instant Homes server', () => {
       tenantSlug: 'bennett-local-group',
       slug: 'laurel-ridge-drive',
       templateKey: 'instant-listing-v2',
-      publicUrl: 'https://funnels.instanthomes.dev/bennett-local-group/laurel-ridge-drive-001',
+      publicUrl: 'http://localhost:5173/bennett-local-group/laurel-ridge-drive-001',
       headline: 'A faster path into Laurel Ridge luxury inventory.',
       primaryCtaLabel: 'Reserve a private tour',
     });
