@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ApiError, getTenantFunnelDetail, updateTenantFunnel, uploadTenantFunnelLogo, getIntegrationStatus, type IntegrationStatusResponse } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { createBrandStyle } from '@/lib/theme';
-import { getTemplateDefinition, listTemplates } from '@/templates/registry';
+import { getTemplateDefinition } from '@/templates/registry';
 import { MediaGalleryEditor } from '@/components/editor/MediaGalleryEditor';
 import { CustomFieldsEditor } from '@/components/editor/CustomFieldsEditor';
 import { TemplatePickerModal } from '@/components/editor/TemplatePickerModal';
@@ -53,7 +53,6 @@ const TAB_CONFIG: Array<{ key: EditorTab; label: string; icon: string }> = [
 export function TenantFunnelEditorPage() {
   const { user } = useAuth();
   const { funnelSlug = '' } = useParams();
-  const templates = listTemplates();
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);

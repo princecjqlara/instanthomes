@@ -124,7 +124,7 @@ export function FunnelPage() {
         </div>
       </section>
       <div style={createBrandStyle(funnel.branding)}>
-        <TemplateComponent funnel={{ ...funnel, instantMeeting: funnelPayload?.instantMeeting }} />
+        <TemplateComponent funnel={{ ...funnel, instantMeeting: funnelPayload?.instantMeeting, media: funnelPayload?.media ?? [], customFields: funnelPayload?.customFields ?? [] }} />
       </div>
       {funnelPayload?.instantMeeting?.showWidget && funnelPayload?.instantMeeting?.widgetKey ? (
         <WidgetScriptInjector

@@ -32,6 +32,8 @@ const bennettFunnels: FunnelRecord[] = [
       description: 'Show buyers a booking-ready meeting block anywhere the template supports CTA placement.',
       ctaLabel: 'Open instant meeting widget',
     },
+    media: [],
+    customFields: [],
   },
   {
     id: 'funnel_modern_oaks',
@@ -63,6 +65,8 @@ const bennettFunnels: FunnelRecord[] = [
       description: 'Keep the scheduling flow armed before publishing the next property drop.',
       ctaLabel: 'Preview meeting CTA',
     },
+    media: [],
+    customFields: [],
   },
 ];
 
@@ -114,6 +118,8 @@ const tenants: TenantRecord[] = [
           description: 'Activate when the client is ready to accept meetings.',
           ctaLabel: 'Widget disabled',
         },
+        media: [],
+        customFields: [],
       },
     ],
   },
