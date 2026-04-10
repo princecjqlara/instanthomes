@@ -1418,6 +1418,7 @@ export function createApp() {
   // ============================================================
 
   const IM_API_URL = process.env.INSTANT_MEETING_API_URL ?? 'http://localhost:3000';
+  const isImConfigured = IM_API_URL && !IM_API_URL.includes('localhost');
 
   // GET /api/integrations/instant-meeting/status — check link status
   app.get('/api/integrations/instant-meeting/status', requireAuthenticated, async (request, response) => {
@@ -1479,6 +1480,11 @@ export function createApp() {
 
     if (!user) {
       response.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    if (!isImConfigured) {
+      response.status(503).json({ error: 'InstantMeeting service is not configured. Set INSTANT_MEETING_API_URL in your environment.' });
       return;
     }
 
@@ -1581,6 +1587,7 @@ export function createApp() {
     }
 
     // Notify IM to clean up their side
+    if (isImConfigured) {
     try {
       await fetch(`${IM_API_URL}/api/integrations/ih/disconnect`, {
         method: 'POST',
@@ -1590,6 +1597,7 @@ export function createApp() {
     } catch (error) {
       console.error('Failed to notify IM of disconnect:', error);
       // Continue with local cleanup even if IM notification fails
+    }
     }
 
     // Clear IM fields on user
@@ -1652,6 +1660,23 @@ export function createApp() {
 
     if (!user || !user.imLinked || !user.imUserId) {
       response.status(400).json({ error: 'No InstantMeeting account is linked' });
+      return;
+    }
+
+    if (!isImConfigured) {
+      response.json({
+        linked: user.imLinked,
+        imUsername: user.imUsername ?? undefined,
+        imEmail: user.imEmail ?? undefined,
+        imUserId: user.imUserId ?? undefined,
+        linkedAt: user.imLinkedAt?.toISOString(),
+        features: {
+          meetingEmbed: user.imLinked,
+          websiteWidget: user.imLinked,
+          liveBroadcast: user.imLinked,
+          visitorPresence: user.imLinked,
+        },
+      });
       return;
     }
 
