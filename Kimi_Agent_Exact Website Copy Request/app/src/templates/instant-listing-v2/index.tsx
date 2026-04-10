@@ -1,5 +1,82 @@
+import { useState } from 'react';
 import { MediaGallery } from '@/components/ui/MediaGallery';
 import type { TemplateRenderProps } from '@/templates/types';
+
+function InstantMeetingPanel({ funnel }: TemplateRenderProps) {
+  const im = funnel.instantMeeting;
+  const [showEmbed, setShowEmbed] = useState(false);
+
+  if (!im?.enabled) {
+    return null;
+  }
+
+  const hasEmbed = im.meetingUrl && (im.embedType === 'booking' || im.embedType === 'both');
+
+  return (
+    <article id="instant-meeting" className="rounded-[2rem] border border-emerald-300/20 bg-gradient-to-b from-[#0c1d17] to-[#081410] p-6">
+      <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-300">Instant Meeting</p>
+      <h3 className="mt-3 text-xl font-bold text-white">{im.headline}</h3>
+      <p className="mt-2 text-sm leading-6 text-white/70">{im.description}</p>
+
+      {/* Embed or placeholder */}
+      <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-1.5">
+        {showEmbed && im.meetingUrl ? (
+          <iframe
+            className="h-[400px] w-full rounded-xl bg-white"
+            src={im.meetingUrl}
+            title="Book a meeting"
+            allow="camera; microphone"
+          />
+        ) : (
+          <div className="flex h-[280px] flex-col items-center justify-center rounded-xl bg-slate-950/40 text-center">
+            <div className="rounded-full bg-emerald-300/10 p-3">
+              <svg className="h-8 w-8 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
+            </div>
+            <p className="mt-3 text-sm font-bold text-white">Schedule a Meeting</p>
+            <p className="mt-1 max-w-[200px] text-xs text-white/50">Open the booking calendar and choose your slot.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          className="rounded-full bg-emerald-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200"
+          onClick={() => {
+            if (hasEmbed) {
+              setShowEmbed(true);
+              window.dispatchEvent(new CustomEvent('im:open-booking'));
+            } else if (im.meetingUrl) {
+              window.open(im.meetingUrl, '_blank', 'noopener');
+            }
+          }}
+        >
+          {im.ctaLabel}
+        </button>
+        <span className="rounded-full border border-white/20 px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/50">
+          {im.mode === 'sticky' ? '📌 Sticky' : '📋 Inline'}
+        </span>
+        {im.liveBroadcast ? (
+          <span className="rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-rose-300">
+            🔴 Live
+          </span>
+        ) : null}
+      </div>
+
+      {/* Feature pills */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {im.autoBooking ? (
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-emerald-300/80">Auto-booking</span>
+        ) : null}
+        {im.showWidget ? (
+          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-emerald-300/80">Widget active</span>
+        ) : null}
+      </div>
+    </article>
+  );
+}
 
 export function InstantListingTemplate({ funnel }: TemplateRenderProps) {
   return (
@@ -24,6 +101,13 @@ export function InstantListingTemplate({ funnel }: TemplateRenderProps) {
               type="button"
               className="mt-8 rounded-full bg-emerald-300 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200"
               onClick={() => {
+                if (funnel.instantMeeting?.enabled) {
+                  const el = document.getElementById('instant-meeting');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth' });
+                    return;
+                  }
+                }
                 if (funnel.instantMeeting?.autoBooking && funnel.instantMeeting?.meetingUrl) {
                   if (funnel.instantMeeting.embedType === 'booking' || funnel.instantMeeting.embedType === 'both') {
                     window.dispatchEvent(new CustomEvent('im:open-booking'));
@@ -46,6 +130,9 @@ export function InstantListingTemplate({ funnel }: TemplateRenderProps) {
           </section>
 
           <section className="space-y-4">
+            {/* Instant Meeting Panel */}
+            <InstantMeetingPanel funnel={funnel} />
+
             {/* Custom Fields */}
             {funnel.customFields && funnel.customFields.length > 0 ? (
               <article className="rounded-[2rem] border border-white/10 bg-[#0c1d17] p-6">
