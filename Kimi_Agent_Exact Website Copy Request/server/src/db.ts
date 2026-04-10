@@ -18,10 +18,19 @@ export function resolveFunnelSlugFromPublicSlug(publicFunnelSlug: string) {
 }
 
 function getAppOrigin() {
+  // 1. Explicit override — highest priority
   if (process.env.APP_URL) {
     return process.env.APP_URL.replace(/\/$/, '');
   }
 
+  // 2. Stable production domain — public funnel links must never point to
+  //    ephemeral preview URLs that sit behind Vercel Deployment Protection.
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+
+  // 3. Current deployment URL (may be a preview URL — only used when no
+  //    production URL is available, e.g. first deploy before a domain exists)
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }

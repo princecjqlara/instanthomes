@@ -1,5 +1,7 @@
 const slugPattern = /[^a-z0-9]+/g;
 
+// Client-side: always use the current browser origin so links resolve correctly
+// regardless of which Vercel deployment (production vs preview) is being viewed.
 export const APP_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://instanthomes.vercel.app';
 
 export function slugify(value: string) {
