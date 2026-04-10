@@ -527,6 +527,9 @@ export { resetDatabase };
 export function createApp() {
   const app = express();
 
+  // Trust Vercel's reverse proxy so secure cookies work behind TLS termination
+  app.set('trust proxy', 1);
+
   app.use(express.json());
   app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   app.use(
