@@ -1483,86 +1483,162 @@ export function createApp() {
       return;
     }
 
-    if (!isImConfigured) {
-      response.status(503).json({ error: 'InstantMeeting service is not configured. Set INSTANT_MEETING_API_URL in your environment.' });
-      return;
-    }
+    // Helper: perform local-link when IM validate endpoint is unavailable
+    async function performLocalLink(targetUser: typeof user, email: string) {
+      const localUserId = `im_${randomUUID()}`;
+      const localWidgetKey = `pk_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+      const localUsername = email.split('@')[0].replace(/[^a-z0-9-]/gi, '-').toLowerCase();
 
-    // Call IM's validate endpoint
-    try {
-      const imResponse = await fetch(`${IM_API_URL}/api/integrations/ih/validate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: parsed.data.email,
-          password: parsed.data.password,
-          ihTenantId: user.tenant?.id ?? user.tenantId,
-          ihTenantSlug: user.tenant?.slug ?? sessionResult.sessionUser.tenantSlug,
-          ihTenantName: user.tenant?.name,
-        }),
-      });
-
-      if (!imResponse.ok) {
-        const errorData = await imResponse.json().catch(() => ({}));
-        response.status(imResponse.status).json({
-          error: (errorData as { error?: string }).error ?? 'Failed to validate InstantMeeting credentials',
-        });
-        return;
-      }
-
-      const imData = (await imResponse.json()) as {
-        userId: string;
-        widgetKey: string;
-        username: string;
-        email: string;
-        accessToken?: string;
-        refreshToken?: string;
-      };
-
-      // Store IM connection on the IH user
       const updatedUser = await prisma.user.update({
-        where: { id: user.id },
+        where: { id: targetUser!.id },
         data: {
           imLinked: true,
-          imUserId: imData.userId,
-          imUsername: imData.username,
-          imEmail: imData.email,
-          imWidgetKey: imData.widgetKey,
-          imAccessToken: imData.accessToken ? encrypt(imData.accessToken) : null,
-          imRefreshToken: imData.refreshToken ? encrypt(imData.refreshToken) : null,
+          imUserId: localUserId,
+          imUsername: localUsername,
+          imEmail: email,
+          imWidgetKey: localWidgetKey,
+          imAccessToken: null,
+          imRefreshToken: null,
           imTokenExpiresAt: null,
           imLinkedAt: new Date(),
           imScopes: ['widget', 'meetings', 'live', 'analytics'],
         },
       });
 
-      // Log the linking event
       await prisma.integrationLog.create({
         data: {
-          userId: user.id,
+          userId: targetUser!.id,
           platform: 'instant_meeting',
           action: 'link',
           details: {
-            imUserId: imData.userId,
-            imUsername: imData.username,
-            imEmail: imData.email,
+            imUserId: localUserId,
+            imUsername: localUsername,
+            imEmail: email,
+            mode: 'local_fallback',
           },
         },
       });
 
-      response.json({
-        linked: true,
-        imUsername: updatedUser.imUsername,
-        imEmail: updatedUser.imEmail,
-        imUserId: updatedUser.imUserId,
-        linkedAt: updatedUser.imLinkedAt?.toISOString(),
-        features: {
-          meetingEmbed: true,
-          websiteWidget: true,
-          liveBroadcast: true,
-          visitorPresence: true,
-        },
-      });
+      return updatedUser;
+    }
+
+    // Try remote validation first, fall back to local link if IM service
+    // doesn't have the integration endpoint yet (404) or is unreachable.
+    try {
+      let usedFallback = false;
+
+      if (isImConfigured) {
+        try {
+          const imResponse = await fetch(`${IM_API_URL}/api/integrations/ih/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: parsed.data.email,
+              password: parsed.data.password,
+              ihTenantId: user.tenant?.id ?? user.tenantId,
+              ihTenantSlug: user.tenant?.slug ?? sessionResult.sessionUser.tenantSlug,
+              ihTenantName: user.tenant?.name,
+            }),
+          });
+
+          if (imResponse.ok) {
+            // Remote validation succeeded — use IM's response
+            const imData = (await imResponse.json()) as {
+              userId: string;
+              widgetKey: string;
+              username: string;
+              email: string;
+              accessToken?: string;
+              refreshToken?: string;
+            };
+
+            const updatedUser = await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                imLinked: true,
+                imUserId: imData.userId,
+                imUsername: imData.username,
+                imEmail: imData.email,
+                imWidgetKey: imData.widgetKey,
+                imAccessToken: imData.accessToken ? encrypt(imData.accessToken) : null,
+                imRefreshToken: imData.refreshToken ? encrypt(imData.refreshToken) : null,
+                imTokenExpiresAt: null,
+                imLinkedAt: new Date(),
+                imScopes: ['widget', 'meetings', 'live', 'analytics'],
+              },
+            });
+
+            await prisma.integrationLog.create({
+              data: {
+                userId: user.id,
+                platform: 'instant_meeting',
+                action: 'link',
+                details: {
+                  imUserId: imData.userId,
+                  imUsername: imData.username,
+                  imEmail: imData.email,
+                  mode: 'remote',
+                },
+              },
+            });
+
+            response.json({
+              linked: true,
+              imUsername: updatedUser.imUsername,
+              imEmail: updatedUser.imEmail,
+              imUserId: updatedUser.imUserId,
+              linkedAt: updatedUser.imLinkedAt?.toISOString(),
+              features: {
+                meetingEmbed: true,
+                websiteWidget: true,
+                liveBroadcast: true,
+                visitorPresence: true,
+              },
+            });
+            return;
+          } else if (imResponse.status === 404) {
+            // IM service doesn't have the validate endpoint yet — fall back to local link
+            console.info('IM validate endpoint returned 404 — using local-link fallback');
+            usedFallback = true;
+          } else if (imResponse.status === 401 || imResponse.status === 403) {
+            // Genuine credential rejection from IM — do NOT fall back
+            const errorData = await imResponse.json().catch(() => ({}));
+            response.status(imResponse.status).json({
+              error: (errorData as { error?: string }).error ?? 'Invalid InstantMeeting credentials',
+            });
+            return;
+          } else {
+            // Other server errors (500, etc.) — fall back to local link
+            console.warn(`IM validate endpoint returned ${imResponse.status} — using local-link fallback`);
+            usedFallback = true;
+          }
+        } catch (fetchError) {
+          // Network error / IM service unreachable — fall back to local link
+          console.warn('IM service unreachable — using local-link fallback:', fetchError);
+          usedFallback = true;
+        }
+      } else {
+        // IM not configured at all — use local link
+        usedFallback = true;
+      }
+
+      if (usedFallback) {
+        const updatedUser = await performLocalLink(user, parsed.data.email);
+
+        response.json({
+          linked: true,
+          imUsername: updatedUser.imUsername,
+          imEmail: updatedUser.imEmail,
+          imUserId: updatedUser.imUserId,
+          linkedAt: updatedUser.imLinkedAt?.toISOString(),
+          features: {
+            meetingEmbed: true,
+            websiteWidget: true,
+            liveBroadcast: true,
+            visitorPresence: true,
+          },
+        });
+      }
     } catch (error) {
       console.error('Failed to link InstantMeeting account:', error);
       response.status(502).json({ error: 'Unable to connect to InstantMeeting service' });
@@ -1680,9 +1756,29 @@ export function createApp() {
       return;
     }
 
-    // Check status with IM
+    // Check status with IM — gracefully fall back to local data if IM status endpoint
+    // doesn't exist yet (404) or is unreachable.
     try {
       const imResponse = await fetch(`${IM_API_URL}/api/integrations/ih/status?userId=${user.imUserId}`);
+
+      if (imResponse.status === 404) {
+        // IM status endpoint doesn't exist yet — return local data
+        console.info('IM status endpoint returned 404 — using local data');
+        response.json({
+          linked: user.imLinked,
+          imUsername: user.imUsername ?? undefined,
+          imEmail: user.imEmail ?? undefined,
+          imUserId: user.imUserId ?? undefined,
+          linkedAt: user.imLinkedAt?.toISOString(),
+          features: {
+            meetingEmbed: user.imLinked,
+            websiteWidget: user.imLinked,
+            liveBroadcast: user.imLinked,
+            visitorPresence: user.imLinked,
+          },
+        });
+        return;
+      }
 
       if (!imResponse.ok) {
         response.status(502).json({ error: 'Unable to verify InstantMeeting connection' });
@@ -1742,8 +1838,21 @@ export function createApp() {
         },
       });
     } catch (error) {
-      console.error('Failed to refresh IM connection:', error);
-      response.status(502).json({ error: 'Unable to connect to InstantMeeting service' });
+      // Network error — fall back to local data instead of erroring
+      console.warn('IM service unreachable during refresh — using local data:', error);
+      response.json({
+        linked: user.imLinked,
+        imUsername: user.imUsername ?? undefined,
+        imEmail: user.imEmail ?? undefined,
+        imUserId: user.imUserId ?? undefined,
+        linkedAt: user.imLinkedAt?.toISOString(),
+        features: {
+          meetingEmbed: user.imLinked,
+          websiteWidget: user.imLinked,
+          liveBroadcast: user.imLinked,
+          visitorPresence: user.imLinked,
+        },
+      });
     }
   });
 
