@@ -1420,6 +1420,28 @@ export function createApp() {
   const IM_API_URL = process.env.INSTANT_MEETING_API_URL ?? 'http://localhost:3000';
   const isImConfigured = IM_API_URL && !IM_API_URL.includes('localhost');
 
+  /**
+   * After an IM account is linked, propagate the widgetKey and meetingUrl
+   * to every funnel owned by this user's tenant.  Without this step the
+   * public funnel page never receives the data it needs to render the
+   * booking popup or inject the floating widget script.
+   */
+  async function syncWidgetToFunnels(tenantId: string, widgetKey: string, imUsername: string) {
+    const tenantFunnels = await prisma.funnel.findMany({
+      where: { tenantId },
+      select: { id: true },
+    });
+
+    const meetingUrl = `${IM_API_URL}/room/${imUsername}`;
+
+    for (const funnel of tenantFunnels) {
+      await prisma.instantMeetingConfig.updateMany({
+        where: { funnelId: funnel.id },
+        data: { widgetKey, meetingUrl },
+      });
+    }
+  }
+
   // GET /api/integrations/instant-meeting/status — check link status
   app.get('/api/integrations/instant-meeting/status', requireAuthenticated, async (request, response) => {
     const sessionResult = await validateAuthenticatedSession(request, response);
@@ -1519,6 +1541,11 @@ export function createApp() {
         },
       });
 
+      // Sync widget key + meeting URL to all tenant funnels
+      if (targetUser!.tenantId) {
+        await syncWidgetToFunnels(targetUser!.tenantId, localWidgetKey, localUsername);
+      }
+
       return updatedUser;
     }
 
@@ -1581,6 +1608,11 @@ export function createApp() {
                 },
               },
             });
+
+            // Sync widget key + meeting URL to all tenant funnels
+            if (user.tenantId) {
+              await syncWidgetToFunnels(user.tenantId, imData.widgetKey, imData.username);
+            }
 
             response.json({
               linked: true,
@@ -1815,14 +1847,22 @@ export function createApp() {
       }
 
       // Sync latest data from IM
+      const refreshedWidgetKey = imData.widgetKey ?? user.imWidgetKey;
+      const refreshedUsername = imData.username ?? user.imUsername;
+
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          imUsername: imData.username ?? user.imUsername,
+          imUsername: refreshedUsername,
           imEmail: imData.email ?? user.imEmail,
-          imWidgetKey: imData.widgetKey ?? user.imWidgetKey,
+          imWidgetKey: refreshedWidgetKey,
         },
       });
+
+      // Also sync to funnels
+      if (user.tenantId && refreshedWidgetKey && refreshedUsername) {
+        await syncWidgetToFunnels(user.tenantId, refreshedWidgetKey, refreshedUsername);
+      }
 
       response.json({
         linked: true,
