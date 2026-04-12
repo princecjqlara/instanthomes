@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CalendarDays, Menu, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useBooking } from '@/components/meeting/BookingProvider';
 
 const navLinks = [
   { label: 'Gallery', href: '#gallery' },
@@ -13,6 +14,7 @@ const navLinks = [
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
+  const booking = useBooking();
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-gruns-green">
@@ -51,9 +53,16 @@ export function Navigation() {
                 <a href="tel:5125550142" className="text-white text-lg font-medium" onClick={() => setIsOpen(false)}>
                   Call Maya
                 </a>
-                <a href="#book-showing" className="text-gruns-yellow text-lg font-semibold" onClick={() => setIsOpen(false)}>
+                <button
+                  type="button"
+                  className="text-gruns-yellow text-lg font-semibold text-left"
+                  onClick={() => {
+                    setIsOpen(false);
+                    booking.openBooking();
+                  }}
+                >
                   Book a Showing
-                </a>
+                </button>
               </div>
             </SheetContent>
           </Sheet>
@@ -80,11 +89,13 @@ export function Navigation() {
             <Phone className="h-5 w-5" />
             <span>512.555.0142</span>
           </a>
-          <Button asChild size="sm" className="hidden sm:inline-flex rounded-full bg-gruns-yellow hover:bg-gruns-yellow/90 text-black font-semibold px-4">
-            <a href="#book-showing">
-              <CalendarDays className="h-4 w-4" />
-              Book a Showing
-            </a>
+          <Button
+            size="sm"
+            className="hidden sm:inline-flex rounded-full bg-gruns-yellow hover:bg-gruns-yellow/90 text-black font-semibold px-4"
+            onClick={() => booking.openBooking()}
+          >
+            <CalendarDays className="h-4 w-4" />
+            Book a Showing
           </Button>
         </div>
       </div>

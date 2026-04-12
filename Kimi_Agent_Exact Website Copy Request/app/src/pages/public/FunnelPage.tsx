@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { InstantMeetingWidget } from '@/components/meeting/InstantMeetingWidget';
+import { BookingProvider } from '@/components/meeting/BookingProvider';
 import { WidgetScriptInjector } from '@/components/WidgetScriptInjector';
 import { getPublicFunnel } from '@/lib/api';
 import { createBrandStyle } from '@/lib/theme';
@@ -109,20 +109,7 @@ export function FunnelPage() {
   const TemplateComponent = template.component;
 
   return (
-    <div>
-      <section className="border-b border-white/10 bg-slate-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Unique funnel link</p>
-            <h1 className="mt-3 text-3xl font-black tracking-tight">{funnel.name}</h1>
-            <p className="mt-2 max-w-3xl text-sm text-white/75">
-              Tenant `{funnel.tenantSlug}` owns this funnel, and the URL stays unique by combining the tenant slug with the funnel slug.
-            </p>
-            <p className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-emerald-200">{funnel.publicUrl}</p>
-          </div>
-          <InstantMeetingWidget config={funnelPayload?.instantMeeting} publicUrl={funnel.publicUrl} />
-        </div>
-      </section>
+    <BookingProvider config={funnelPayload?.instantMeeting}>
       <div style={createBrandStyle(funnel.branding)}>
         <TemplateComponent funnel={{ ...funnel, instantMeeting: funnelPayload?.instantMeeting, media: funnelPayload?.media ?? [], customFields: funnelPayload?.customFields ?? [] }} />
       </div>
@@ -136,6 +123,6 @@ export function FunnelPage() {
           propertyPrice={funnel.propertyPrice}
         />
       ) : null}
-    </div>
+    </BookingProvider>
   );
 }

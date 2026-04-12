@@ -1,16 +1,15 @@
-import { useState } from 'react';
+import { useCallback } from 'react';
 import { MediaGallery } from '@/components/ui/MediaGallery';
+import { useBooking } from '@/components/meeting/BookingProvider';
 import type { TemplateRenderProps } from '@/templates/types';
 
 function InstantMeetingPanel({ funnel }: TemplateRenderProps) {
   const im = funnel.instantMeeting;
-  const [showEmbed, setShowEmbed] = useState(false);
+  const booking = useBooking();
 
   if (!im?.enabled) {
     return null;
   }
-
-  const hasEmbed = im.meetingUrl && (im.embedType === 'booking' || im.embedType === 'both');
 
   return (
     <article id="instant-meeting" className="rounded-[2rem] border border-emerald-300/20 bg-gradient-to-b from-[#0c1d17] to-[#081410] p-6">
@@ -18,40 +17,27 @@ function InstantMeetingPanel({ funnel }: TemplateRenderProps) {
       <h3 className="mt-3 text-xl font-bold text-white">{im.headline}</h3>
       <p className="mt-2 text-sm leading-6 text-white/70">{im.description}</p>
 
-      {/* Embed or placeholder */}
+      {/* Embed placeholder — click to open popup */}
       <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-1.5">
-        {showEmbed && im.meetingUrl ? (
-          <iframe
-            className="h-[400px] w-full rounded-xl bg-white"
-            src={im.meetingUrl}
-            title="Book a meeting"
-            allow="camera; microphone"
-          />
-        ) : (
-          <div className="flex h-[280px] flex-col items-center justify-center rounded-xl bg-slate-950/40 text-center">
-            <div className="rounded-full bg-emerald-300/10 p-3">
-              <svg className="h-8 w-8 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-              </svg>
-            </div>
-            <p className="mt-3 text-sm font-bold text-white">Schedule a Meeting</p>
-            <p className="mt-1 max-w-[200px] text-xs text-white/50">Open the booking calendar and choose your slot.</p>
+        <div
+          className="flex h-[280px] cursor-pointer flex-col items-center justify-center rounded-xl bg-slate-950/40 text-center transition hover:bg-slate-950/60"
+          onClick={() => booking.openBooking()}
+        >
+          <div className="rounded-full bg-emerald-300/10 p-3">
+            <svg className="h-8 w-8 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+            </svg>
           </div>
-        )}
+          <p className="mt-3 text-sm font-bold text-white">Schedule a Meeting</p>
+          <p className="mt-1 max-w-[200px] text-xs text-white/50">Click to open the booking calendar and choose your slot.</p>
+        </div>
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <button
           type="button"
           className="rounded-full bg-emerald-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200"
-          onClick={() => {
-            if (hasEmbed) {
-              setShowEmbed(true);
-              window.dispatchEvent(new CustomEvent('im:open-booking'));
-            } else if (im.meetingUrl) {
-              window.open(im.meetingUrl, '_blank', 'noopener');
-            }
-          }}
+          onClick={() => booking.openBooking()}
         >
           {im.ctaLabel}
         </button>
@@ -79,6 +65,15 @@ function InstantMeetingPanel({ funnel }: TemplateRenderProps) {
 }
 
 export function InstantListingTemplate({ funnel }: TemplateRenderProps) {
+  const booking = useBooking();
+
+  const handlePrimaryCta = useCallback(() => {
+    if (funnel.instantMeeting?.enabled) {
+      booking.openBooking();
+      return;
+    }
+  }, [funnel.instantMeeting, booking]);
+
   return (
     <div className="min-h-screen bg-[#08140f] px-4 py-16 text-white sm:px-6 lg:px-8" data-template-key={funnel.templateKey}>
       <div className="mx-auto max-w-6xl">
@@ -100,22 +95,7 @@ export function InstantListingTemplate({ funnel }: TemplateRenderProps) {
             <button
               type="button"
               className="mt-8 rounded-full bg-emerald-300 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-200"
-              onClick={() => {
-                if (funnel.instantMeeting?.enabled) {
-                  const el = document.getElementById('instant-meeting');
-                  if (el) {
-                    el.scrollIntoView({ behavior: 'smooth' });
-                    return;
-                  }
-                }
-                if (funnel.instantMeeting?.autoBooking && funnel.instantMeeting?.meetingUrl) {
-                  if (funnel.instantMeeting.embedType === 'booking' || funnel.instantMeeting.embedType === 'both') {
-                    window.dispatchEvent(new CustomEvent('im:open-booking'));
-                  } else {
-                    window.open(funnel.instantMeeting.meetingUrl, '_blank', 'noopener');
-                  }
-                }
-              }}
+              onClick={handlePrimaryCta}
             >
               {funnel.primaryCtaLabel}
             </button>
